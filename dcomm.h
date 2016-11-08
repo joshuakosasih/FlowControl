@@ -22,9 +22,9 @@
 
 /* Const */
 #define BYTESIZE 256 /* THe maximum value of a byte */
-#define MAXLEN 1025 /* Maximum messages length */
+#define MAXLEN 1024 /* Maximum messages length */
 
-typedef enum { false = 0, true } Boolean;
+typedef enum { false=0, true } Boolean;
 
 typedef unsigned char Byte;
 
