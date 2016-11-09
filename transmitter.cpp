@@ -12,6 +12,7 @@
 /** GLOBAL VARIABLES **/ 
 char lastByteReceived = XON;
 int socket_desc;
+int isMainUp = 1;
 struct sockaddr_in server;
 
 
@@ -101,7 +102,7 @@ int main(int argc, char *argv[])
 	// reads (msg_len - 1) characters
 	// msg_len is 2 so that it only reads one character
 	int counter = 0;
-	while (fgets(str_to_send, msg_len, file)) {
+	while (fgets(str_to_send, msg_len, file) != NULL) {
 		
 		if (lastByteReceived == XOFF) {
 			
@@ -131,6 +132,8 @@ int main(int argc, char *argv[])
 		}
 	}
 	
+	isMainUp = 0;
+	
 	printf("Exit - Main");
 	return 0;
 	
@@ -146,7 +149,7 @@ void *XON_XOFF_HANDLER(void *args) {
 	int server_len = sizeof(server);
 	char recv_str[2];
 	
-	while (true) {
+	while (isMainUp == 1) {
 		
 		// receiving XON/XOFF from the receiver
 		rf = recvfrom(socket_desc, recv_str, strlen(recv_str), 0, (struct sockaddr *)&server, (socklen_t*)&server_len);
