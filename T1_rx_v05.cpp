@@ -1,6 +1,6 @@
 /*
 * File : T1_rx.cpp
-* Author : Joshua K - 012, Luthfi K, Albertus K - 100
+* Author : Joshua K - 012, Luthfi K -102, Albertus K - 100
 */
 #include <stdio.h>
 #include <string.h>
@@ -18,24 +18,24 @@
 /* Define receive buffer size */
 #define RXQSIZE 8
 
-char *xonoff_message;
+char xonoff_message[2];
 Byte rxbuf[RXQSIZE];
 QTYPE rcvq = {0, 0, 0, RXQSIZE, rxbuf };
 QTYPE *rxq = &rcvq;
 Byte sent_xonxoff = XON;
-Boolean send_xon = false, send_xoff = false;
+bool send_xon = false, send_xoff = false;
+/*server client addres */
+struct sockaddr_in sserver, sclient;
 
 /* Socket */
 int sockfd; // listen on sock_fd
 
 /* Functions declaration */
-static Byte *rcvchar(int, sockfd, QTYPE *queue);
+static Byte *rcvchar(int sockfd, QTYPE *queue);
 static Byte *q_get(QTYPE *, Byte *);
 
 int main(int argc, char *argv[])
 {
-	struct sockaddr_in sserver, sclient;
-
 	Byte c;
 	/*
 	Insert code here to bind socket to the port number given in argv[1].
@@ -77,8 +77,6 @@ int main(int argc, char *argv[])
 	/*** ELSE IF CHILD PROCESS ***/
 	while (true) {
 	/* Call q_get */
-	Byte *res;
-	res = q_get(rcvq)
 	/* Can introduce some delay here. */
 	}
 }
@@ -97,13 +95,17 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 		send_xon = false;
 		send_xoff = true;
 
-		xonoff_message = &sent_xonxoff;
+		xonoff_message[0] = sent_xonxoff;
 		//TODO: send 'sent_xonxoff' via socket
-		r = sendto(sockfd, xonoff_message, strlen(xonoff_message), 0,(struct sockaddr *)&cli_addr,sizeof(cli_addr));
+		r = sendto(sockfd, xonoff_message, strlen(xonoff_message), 0, (struct sockaddr *)&sclient,sizeof(sclient));
 
 		//if send succeed
 		send_xoff = true;
-
+		//check error on signal
+		if(r>0)
+			printf("Buffer > minimum upperlimit. Mengirim XOFF.\n");
+		else
+			printf("xoff signal failed\n");
 		}
 	}
 	else {

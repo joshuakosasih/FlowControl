@@ -24,8 +24,6 @@
 #define BYTESIZE 256 /* THe maximum value of a byte */
 #define MAXLEN 1024 /* Maximum messages length */
 
-typedef enum { false=0, true } Boolean;
-
 typedef unsigned char Byte;
 
 typedef struct QTYPE
@@ -45,6 +43,6 @@ typedef struct MESGB
   Byte checksum;
   Byte msgno;
   Byte *data;
-} MESGB
+} MESGB;
 
 #endif
