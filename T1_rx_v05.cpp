@@ -1,6 +1,6 @@
 /*
 * File : T1_rx.cpp
-* Author : Joshua K - 012, Luthfi K -102, Albertus K - 100
+* Author : Joshua K - 012, Albertus K - 100, Luthfi K -102
 */
 #include <stdio.h>
 #include <string.h>
@@ -17,16 +17,23 @@
 
 /* Define receive buffer size */
 #define RXQSIZE 8
+#define UPPERLIMIT 7
 #define LOWERLIMIT 5
 
-char xonoff_message[2];
+/* Message */
+char x_msg[2];
+char r_msg[1];
+
+/* Buffer */
 Byte rxbuf[RXQSIZE];
 QTYPE rcvq = {0, 0, 0, RXQSIZE, rxbuf };
 QTYPE *rxq = &rcvq;
 Byte sent_xonxoff = XON;
 bool send_xon = false, send_xoff = false;
-/*server client addres */
+
+/* Server-Client socket address */
 struct sockaddr_in sserver, sclient;
+socklen_t cli_len = sizeof(sclient);
 
 /* Socket */
 int sockfd; // listen on sock_fd
@@ -62,6 +69,8 @@ int main(int argc, char *argv[])
 	printf("Bind at port : %d\n",atoi(argv[1]));
 
 	/* Initialize XON/XOFF flags */
+	sent_xonxoff = XON;
+	send_xon = true, send_xoff = false;
 
 	/* Create child process */
 
@@ -71,7 +80,7 @@ int main(int argc, char *argv[])
 
 		/* Quit on end of file */
 		if (c == Endfile) {
-		exit(0);
+			exit(0);
 		}
 	}
 
@@ -88,32 +97,39 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	Insert code here. Read a character from socket and put it to the receive buffer. If the number of characters in the
 	* receive buffer is above certain level, then send XOFF and set a flag (why?). Return a pointer to the buffer where data is put.
 	*/
-	int r; //result of sending signal
-	if (queue->count >= RXQSIZE) { //buffer full
 
-		if(!send_xoff) { //XOFF not sent yet
+	if ((queue->count >= UPPERLIMIT)&&(!send_xoff)) { //buffer full
+
 		sent_xonxoff = XOFF;
 		send_xon = false;
 		send_xoff = true;
 
-		xonoff_message[0] = sent_xonxoff;
+		x_msg[0] = sent_xonxoff;
 		//TODO: send 'sent_xonxoff' via socket
-		r = sendto(sockfd, xonoff_message, strlen(xonoff_message), 0, (struct sockaddr *)&sclient,sizeof(sclient));
 
-		//if send succeed
-		send_xoff = true;
-		//check error on signal
-		if (r > 0)
+		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
 			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
 		else
 			puts("XOFF gagal dikirim");
-		}
+			
 	}
-	else {
 
-		//TODO: read char from socket (receive)
-
-	}
+	//TODO: read char from socket (receive)
+	
+	if (recvfrom(sockfd, r_msg, strlen(r_msg), 0, (struct sockaddr *)&sclient, &cli_len) < 0) 
+		puts("Receive byte failed");
+	
+	// transfer from received msg to buffer
+	queue->data[queue->rear] = r_msg[0];
+	
+	// increment rear index
+	queue->rear += 1;
+	// check for wraparound
+	if (queue->rear >= RXQSIZE) queue->rear -= RXQSIZE;
+	// keep track of increased buffer content size
+	queue->count += 1;
+	
+	
 }
 
 /* q_get returns a pointer to the buffer where data is read or NULL if
@@ -134,11 +150,9 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 		send_xon = true;
 		send_xon = false;
 		
-		xonoff_message[0] = sent_xonxoff;
-		int r;
-		r = sendto(sockfd, xonoff_message, strlen(xonoff_message), 0, (struct sockaddr *)&sclient,sizeof(sclient));
+		x_msg[0] = sent_xonxoff;
 
-		if (r > 0)
+		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
 			puts("Buffer < maximum lowerlimit. Mengirim XON.");
 		else
 			puts("XON gagal dikirim");
@@ -147,8 +161,9 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	//select current data from buffer
 	current = &queue->data[queue->front];
 	
-	//move pointer for current data in buffer
-	queue->front = queue->front + 1;
+	//increment front index
+	queue->front += 1;
+	//check for wraparound
 	if (queue->front >= RXQSIZE) queue->front -= RXQSIZE;
 	
 	//keep track of reduced buffer content size
