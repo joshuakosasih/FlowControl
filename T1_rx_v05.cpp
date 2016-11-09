@@ -17,6 +17,7 @@
 
 /* Define receive buffer size */
 #define RXQSIZE 8
+#define LOWERLIMIT 5
 
 char xonoff_message[2];
 Byte rxbuf[RXQSIZE];
@@ -46,10 +47,10 @@ int main(int argc, char *argv[])
         puts("Could not create socket");
         return 1;
     }
-  puts("Socket created");
+	puts("Socket created");
 
 	sserver.sin_family = AF_INET;
-  sserver.sin_addr.s_addr = INADDR_ANY;
+	sserver.sin_addr.s_addr = INADDR_ANY;
 	sserver.sin_port = htons(atoi(argv[1]));
 
 	if (bind(sockfd,(struct sockaddr *)&sserver, sizeof(sserver)) < 0)
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
         perror("Bind failed. Error");
         return 1;
     }
-  puts("Bind done");
+	puts("Bind done");
 	printf("Bind at port : %d\n",atoi(argv[1]));
 
 	/* Initialize XON/XOFF flags */
@@ -102,10 +103,10 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 		//if send succeed
 		send_xoff = true;
 		//check error on signal
-		if(r>0)
-			printf("Buffer > minimum upperlimit. Mengirim XOFF.\n");
+		if (r > 0)
+			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
 		else
-			printf("xoff signal failed\n");
+			puts("XOFF gagal dikirim");
 		}
 	}
 	else {
@@ -128,4 +129,30 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	Insert code here. Retrieve data from buffer, save it to "current" and "data" If the number of characters in the receive buffer
 	* is below certain level, then send XON. Increment front index and check for wraparound.
 	*/
+	if ((queue->count <= LOWERLIMIT) && (!send_xon)){
+		sent_xonxoff = XON;
+		send_xon = true;
+		send_xon = false;
+		
+		xonoff_message[0] = sent_xonxoff;
+		int r;
+		r = sendto(sockfd, xonoff_message, strlen(xonoff_message), 0, (struct sockaddr *)&sclient,sizeof(sclient));
+
+		if (r > 0)
+			puts("Buffer < maximum lowerlimit. Mengirim XON.");
+		else
+			puts("XON gagal dikirim");
+	}
+	
+	//select current data from buffer
+	current = &queue->data[queue->front];
+	
+	//move pointer for current data in buffer
+	queue->front = queue->front + 1;
+	if (queue->front >= RXQSIZE) queue->front -= RXQSIZE;
+	
+	//keep track of reduced buffer content size
+	queue->count -= 1;
+	
+	return current;
 }
