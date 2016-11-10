@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
     // initializes object server attributes
     server.sin_family = AF_INET;
-    server.sin_addr.s_addr = gethostbyname(hostname);
+    server.sin_addr.s_addr = inet_addr(hostname);
     server.sin_port = htons(atoi(port));
 
     // binds the object server to the socket
