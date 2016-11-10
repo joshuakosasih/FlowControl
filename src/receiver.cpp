@@ -1,5 +1,5 @@
 /*
-* File : T1_rx.cpp
+* File : receiver.cpp
 * Author : Joshua K - 012, Albertus K - 100, Luthfi K -102
 */
 #include <stdio.h>
@@ -9,17 +9,17 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include<pthread.h>
+#include <pthread.h>
 
 #include "dcomm.h"
 
 /* Delay to adjust speed of consuming buffer, in milliseconds */
-#define DELAY 100000
+#define DELAY 30000
 
 /* Define receive buffer size */
 #define RXQSIZE 8
 #define UPPERLIMIT 6
-#define LOWERLIMIT 2
+#define LOWERLIMIT 3
 
 /* Message */
 Byte x_msg[1];
@@ -47,8 +47,7 @@ static void *consume(void *param);
 int main(int argc, char *argv[])
 {
 	Byte c;
-	/*
-	Insert code here to bind socket to the port number given in argv[1].
+	/* bind socket to the port number given in argv[1].
 	*/
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0)
@@ -56,8 +55,7 @@ int main(int argc, char *argv[])
         puts("Could not create socket");
         return 1;
     }
-	puts("Socket created");
-
+	
 	sserver.sin_family = AF_INET;
 	sserver.sin_addr.s_addr = INADDR_ANY;
 	sserver.sin_port = htons(atoi(argv[1]));
@@ -67,8 +65,10 @@ int main(int argc, char *argv[])
         perror("Bind failed. Error");
         return 1;
     }
-	puts("Bind done");
-	printf("Bind at port : %d\n",atoi(argv[1]));
+	// Get ip address
+	char *ip = inet_ntoa(sserver.sin_addr);
+
+	printf("Binding pada %d...\n", ip, atoi(argv[1]));
 
 	/* Initialize XON/XOFF flags */
 	sent_xonxoff = XON;
@@ -86,31 +86,34 @@ int main(int argc, char *argv[])
 	/*** IF PARENT PROCESS ***/
 	while (true) {
 		c = *(rcvchar(sockfd, rxq));
-		if (!c) {
-			j = 1;
-		} else {
-			j++;
-		}
+
 		/* Quit on end of file */
 		if (c == Endfile) {
+			puts("Received end of file");
+			puts("Exiting");
+			puts("Bye");				
 			exit(0);
+		} else {
+			if (!c) {
+				j = 1;
+			} else {
+				j++;
+			}
+			printf("Menerima byte ke-%d.\n", j);
 		}
-		printf("Menerima byte ke-%d.\n", j);
 	}
 
 	if(pthread_join(consume_thread,NULL)){
 		fprintf(stderr,"Error joining thread\n");
 		return 2;
 	}
-
-
 }
 
 static Byte *rcvchar(int sockfd, QTYPE *queue)
 {
-	/*
-	Insert code here. Read a character from socket and put it to the receive buffer. If the number of characters in the
-	* receive buffer is above certain level, then send XOFF and set a flag (why?). Return a pointer to the buffer where data is put.
+	/**
+	Read a character from socket and put it to the receive buffer. If the number of characters in the
+	* receive buffer is above certain level, then send XOFF and set a flag
 	*/
 	if ((queue->count >= UPPERLIMIT)&&(!send_xoff)) { //buffer full
 		sent_xonxoff = XOFF;
@@ -121,9 +124,7 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 
 		// send 'sent_xonxoff' via socket
 		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0){
-			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
-
-			printf("XON/XOFF: %d\n", x_msg[0]);
+			puts("Buffer > minimum upperlimit.\nMengirim XOFF.");
 		}
 		else {
 			puts("XOFF gagal dikirim");
@@ -133,14 +134,16 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	// read char from socket (receive)
 	if (recvfrom(sockfd, r_msg, RXQSIZE, 0, (struct sockaddr *)&sclient, &cli_len) < 0)
 		puts("Receive byte failed");
-	else {
-		// check end of file
-		if(int(r_msg[0]) != Endfile){
-
-		}
-		else
-			return NULL;
+	
+	// check end of file
+	if(r_msg[0] == Endfile) {
+		puts("Received end of file");
+		puts("Exiting");
+		puts("Bye");
+		exit(0);
+		return (Byte*)Endfile;
 	}
+	
 	// transfer from received msg to buffer
 	queue->data[queue->rear] = r_msg[0];
 
@@ -152,19 +155,13 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	return queue->data;
 }
 
-/* q_get returns a pointer to the buffer where data is read or NULL if
-* buffer is empty.
-*/
-
 static Byte *q_get(QTYPE *queue, Byte *data)
 {
 	Byte *current;
 	/* Nothing in the queue */
 	if (!queue->count) return (NULL);
-	/*
-	Insert code here. Retrieve data from buffer, save it to "current" and "data" If the number of characters in the receive buffer
-	* is below certain level, then send XON. Increment front index and check for wraparound.
-	*/
+	
+	/** send XON **/
 	if ((queue->count <= LOWERLIMIT) && (!send_xon)){
 		sent_xonxoff = XON;
 		send_xon = true;
@@ -172,7 +169,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 		x_msg[0] = sent_xonxoff;
 
 		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
-			puts("Buffer < maximum lowerlimit. Mengirim XON.");
+			puts("Buffer < maximum lowerlimit.\nMengirim XON.");
 		else
 			puts("XON gagal dikirim");
 	}
@@ -187,21 +184,18 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	return current;
 }
 
-static void* consume(void *param){
+static void* consume(void *queue){
 
-	QTYPE *rcvq_ptr = (QTYPE *)param;
+	QTYPE *rcvq_ptr = (QTYPE *)queue;
 
-	int i=1; //character index
+	int i=1; //consume counter
 	while (true) {
-
-		/* Call q_get */
-		Byte *res, *sesuatu;
-		res = q_get(rcvq_ptr,sesuatu);
-		if(res && (int(*res)>32 || int(*res)==CR || int(*res)==LF || int(*res)==Endfile )){
-			printf("Mengkonsumsi byte ke-%d : %c\n",i,*res);
+		Byte *res, *dummy;
+		res = q_get(rcvq_ptr, dummy);
+		if(res){
+			printf("Mengkonsumsi byte ke-%d : '%c'\n",i,*res);
 			i++;
 		}
-		/* Can introduce some delay here. */
 		usleep(DELAY); //delay
 	}
 	pthread_exit(0);
