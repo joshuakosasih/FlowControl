@@ -101,32 +101,35 @@ int main(int argc, char *argv[])
 	// msg_len is 2 so that it only reads one character
 	int counter = 0;
 	while (fgets(str_to_send, msg_len, file) != NULL) {
+		if (str_to_send[0] != '\n'){
+			if (lastByteReceived == XOFF) {
 
-		if (lastByteReceived == XOFF) {
+				printf("XOFF diterima.\n");
 
-			printf("XOFF diterima.\n");
-
-			// waiting for XON
-			while (lastByteReceived == XOFF) {
-
-					printf("Menunggu XON.\n");
+				// waiting for XON
+				while (lastByteReceived == XOFF) {
+					printf("Menunggu XON\n");
+					usleep(100000);
+				}
+				counter++;
+				printf("Mengirim byte ke-%d: '%s'\n", counter, str_to_send);
+				sendto(socket_desc, str_to_send, strlen(str_to_send), 0,(struct sockaddr *)&server, sizeof(server));
+				printf("XON diterima.\n");
 			}
 
-			printf("XON diterima.\n");
-		}
+			else {
 
-		else {
+				usleep(10000);
+				// sending bytes (one character)
+				counter++;
+				printf("Mengirim byte ke-%d: '%s'\n", counter, str_to_send);
+				sendto(socket_desc, str_to_send, strlen(str_to_send), 0,
+						(struct sockaddr *)&server, sizeof(server));
 
-			usleep(10000);
-			// sending bytes (one character)
-			counter++;
-			printf("Mengirim byte ke-%d: '%s'\n", counter, str_to_send);
-			sendto(socket_desc, str_to_send, strlen(str_to_send), 0,
-					(struct sockaddr *)&server, sizeof(server));
+				// reset string
+				memset(str_to_send, 0, sizeof(str_to_send));
 
-			// reset string
-			memset(str_to_send, 0, sizeof(str_to_send));
-
+			}
 		}
 	}
 
@@ -163,8 +166,8 @@ void *XON_XOFF_HANDLER(void *args) {
 		}
 
 		else {
-			puts("Received XON/XOFF");
-				printf("? %d\n", recv_str[0]);
+			if(recv_str[0] == XOFF)	printf("XOFF Recieved\n");
+			else printf("XON Recieved\n");
 			}
 
 		// XON or XOFF
