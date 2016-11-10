@@ -5,15 +5,14 @@
 #include<arpa/inet.h>
 #include<unistd.h>
 #include<pthread.h>
-
-#define XON (0x11)
-#define XOFF (0x13)
+#include "dcomm.h"
 
 /** GLOBAL VARIABLES **/
 char lastByteReceived = XON;
 int socket_desc;
 int isMainUp = 1;
 struct sockaddr_in server;
+char str_to_send[2];
 
 
 using namespace std;
@@ -30,8 +29,7 @@ int main(int argc, char *argv[])
 	FILE* file;
 	int msg_len = 2;
 	int sock;
-    char str_to_send[1];
-    char* hostname = argv[1];
+  char* hostname = argv[1];
 	char* port = argv[2];
 	char* fileName = argv[3];
 
@@ -111,8 +109,7 @@ int main(int argc, char *argv[])
 			// waiting for XON
 			while (lastByteReceived == XOFF) {
 
-				printf("Menunggu XON...\n");
-
+				
 			}
 
 			printf("XON diterima.\n");
@@ -120,6 +117,7 @@ int main(int argc, char *argv[])
 
 		else {
 
+			usleep(1000);
 			// sending bytes (one character)
 			counter++;
 			printf("Mengirim byte ke-%d: '%s'\n", counter, str_to_send);
@@ -143,16 +141,19 @@ int main(int argc, char *argv[])
 /** THREAD
  * 	receives XON/XOFF
  */
+
 void *XON_XOFF_HANDLER(void *args) {
 
 	int rf;
 	int server_len = sizeof(server);
-	char recv_str[2];
+	Byte recv_str[1];
 
-	while (isMainUp == 1) {
+	while (true) {
 
 		// receiving XON/XOFF from the receiver
-		rf = recvfrom(socket_desc, recv_str, strlen(recv_str), 0, (struct sockaddr *)&server, (socklen_t*)&server_len);
+		//rf = recvfrom(socket_desc, recv_str, strlen(recv_str), 0, (struct sockaddr *)&server, (socklen_t*)&server_len);
+
+		rf = recvfrom(socket_desc, recv_str, 1, 0, (struct sockaddr *)&server, (socklen_t*)&server_len);
 
 		if (rf < 0) {
 
@@ -161,8 +162,22 @@ void *XON_XOFF_HANDLER(void *args) {
 
 		}
 
+		else {
+			puts("Received XON/XOFF");
+
+			if ((Byte)recv_str[0] == XON || (Byte)recv_str[0] == XOFF) {
+				puts("XON/XOFF");
+			}
+			else {
+				printf("? %d\n", recv_str[0]);
+			}
+		}
+
 		// XON or XOFF
 		lastByteReceived = recv_str[0];
+
+		memset(recv_str, 0, sizeof(recv_str));
+
 	}
 
 	printf("Exit - XON/XOFF handler");

@@ -21,7 +21,7 @@
 #define LOWERLIMIT 5
 
 /* Message */
-char x_msg[2];
+Byte x_msg[1];
 char r_msg[1];
 
 /* Buffer */
@@ -108,12 +108,17 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 		send_xoff = true;
 
 		x_msg[0] = sent_xonxoff;
-		
+
 		// send 'sent_xonxoff' via socket
-		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
+		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0){
 			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
-		else
+
+
+			printf("XON/XOFF: %d\n", x_msg[0]);
+		}
+		else {
 			puts("XOFF gagal dikirim");
+		}
 	}
 
 	// read char from socket (receive)
@@ -158,7 +163,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 
 		x_msg[0] = sent_xonxoff;
 
-		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
+		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
 			puts("Buffer < maximum lowerlimit. Mengirim XON.");
 		else
 			puts("XON gagal dikirim");
