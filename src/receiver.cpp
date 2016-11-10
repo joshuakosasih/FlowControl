@@ -68,8 +68,8 @@ int main(int argc, char *argv[])
 	// Get ip address
 	char *ip = inet_ntoa(sserver.sin_addr);
 
-	printf("Binding pada %d...\n", ip, atoi(argv[1]));
-
+	printf("Binding pada %d...\n", atoi(argv[1]));
+	
 	/* Initialize XON/XOFF flags */
 	sent_xonxoff = XON;
 	send_xon = true, send_xoff = false;
