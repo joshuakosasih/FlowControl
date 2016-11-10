@@ -9,11 +9,12 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include<pthread.h>
 
 #include "dcomm.h"
 
 /* Delay to adjust speed of consuming buffer, in milliseconds */
-#define DELAY 500
+#define DELAY 100000
 
 /* Define receive buffer size */
 #define RXQSIZE 8
@@ -41,6 +42,7 @@ int sockfd; // listen on sock_fd
 /* Functions declaration */
 static Byte *rcvchar(int sockfd, QTYPE *queue);
 static Byte *q_get(QTYPE *, Byte *);
+static void *consume(void *param);
 
 int main(int argc, char *argv[])
 {
@@ -74,6 +76,13 @@ int main(int argc, char *argv[])
 
 	/* Create child process */
 	int j=0;
+	pthread_t consume_thread;
+
+	if(pthread_create(&consume_thread, NULL, consume, &rcvq)){
+		fprintf(stderr, "Error creating thread\n");
+		return 1;
+	}
+
 	/*** IF PARENT PROCESS ***/
 	while (true) {
 		c = *(rcvchar(sockfd, rxq));
@@ -82,6 +91,7 @@ int main(int argc, char *argv[])
 		} else {
 			j++;
 		}
+		usleep(50000);
 		/* Quit on end of file */
 		if (c == Endfile) {
 			exit(0);
@@ -89,11 +99,12 @@ int main(int argc, char *argv[])
 		printf("Menerima byte ke-%d.\n", j);
 	}
 
-	/*** ELSE IF CHILD PROCESS ***/
-	while (true) {
-	/* Call q_get */
-	/* Can introduce some delay here. */
+	if(pthread_join(consume_thread,NULL)){
+		fprintf(stderr,"Error joining thread\n");
+		return 2;
 	}
+
+
 }
 
 static Byte *rcvchar(int sockfd, QTYPE *queue)
@@ -112,7 +123,6 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 		// send 'sent_xonxoff' via socket
 		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0){
 			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
-
 
 			printf("XON/XOFF: %d\n", x_msg[0]);
 		}
@@ -177,4 +187,24 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	queue->count -= 1;
 
 	return current;
+}
+
+static void* consume(void *param){
+
+	QTYPE *rcvq_ptr = (QTYPE *)param;
+
+	int i=1; //character index
+	while (true) {
+
+		/* Call q_get */
+		Byte *res, *sesuatu;
+		res = q_get(rcvq_ptr,sesuatu);
+		if(res && (int(*res)>32 || int(*res)==CR || int(*res)==LF || int(*res)==Endfile )){
+			printf("Mengkonsumsi byte ke-%d : %c\n",i,*res);
+			i++;
+		}
+		/* Can introduce some delay here. */
+		usleep(DELAY); //delay
+	}
+	pthread_exit(0);
 }
