@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 	FILE* file;
 	int msg_len = 2;
 	int sock;
-    char str_to_send[2];
+    char str_to_send[1];
     char* hostname = argv[1];
 	char* port = argv[2];
 	char* fileName = argv[3];

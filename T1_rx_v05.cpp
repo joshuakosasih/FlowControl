@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
 	int j=1;
 	/*** IF PARENT PROCESS ***/
 	while (true) {
+		printf("waiting for char\n");
 		c = *(rcvchar(sockfd, rxq,&j));
 
 		/* Quit on end of file */
@@ -116,10 +117,11 @@ static Byte *rcvchar(int sockfd, QTYPE *queue, int *j)
 
 	//TODO: read char from socket (receive)
 
-	if (recvfrom(sockfd, r_msg, strlen(r_msg), 0, (struct sockaddr *)&sclient, &cli_len) < 0)
+	if (recvfrom(sockfd, r_msg, RXQSIZE, 0, (struct sockaddr *)&sclient, &cli_len) < 0)
 		puts("Receive byte failed");
 	else
 	{
+		printf("-->%c\n", r_msg[0]);
 		// check end of file
 	if(int(r_msg[0]) != Endfile){
 		printf("%zu\n",strlen(r_msg));
