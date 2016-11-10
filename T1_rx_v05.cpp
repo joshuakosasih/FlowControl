@@ -39,7 +39,7 @@ socklen_t cli_len = sizeof(sclient);
 int sockfd; // listen on sock_fd
 
 /* Functions declaration */
-static Byte *rcvchar(int sockfd, QTYPE *queue);
+static Byte *rcvchar(int sockfd, QTYPE *queue,int *j);
 static Byte *q_get(QTYPE *, Byte *);
 
 int main(int argc, char *argv[])
@@ -73,10 +73,10 @@ int main(int argc, char *argv[])
 	send_xon = true, send_xoff = false;
 
 	/* Create child process */
-
+	int j=1;
 	/*** IF PARENT PROCESS ***/
 	while (true) {
-		c = *(rcvchar(sockfd, rxq));
+		c = *(rcvchar(sockfd, rxq,&j));
 
 		/* Quit on end of file */
 		if (c == Endfile) {
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 	}
 }
 
-static Byte *rcvchar(int sockfd, QTYPE *queue)
+static Byte *rcvchar(int sockfd, QTYPE *queue, int *j)
 {
 	/*
 	Insert code here. Read a character from socket and put it to the receive buffer. If the number of characters in the
@@ -111,25 +111,35 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
 		else
 			puts("XOFF gagal dikirim");
-			
+
 	}
 
 	//TODO: read char from socket (receive)
-	
-	if (recvfrom(sockfd, r_msg, strlen(r_msg), 0, (struct sockaddr *)&sclient, &cli_len) < 0) 
+
+	if (recvfrom(sockfd, r_msg, strlen(r_msg), 0, (struct sockaddr *)&sclient, &cli_len) < 0)
 		puts("Receive byte failed");
-	
+	else
+	{
+		// check end of file
+	if(int(r_msg[0]) != Endfile){
+		printf("%zu\n",strlen(r_msg));
+		printf("Menerima byte : %c ke- %d.\n",r_msg[0],*j);
+		*j++;
+	}
+	else
+		*j=0; //reset j
+	}
 	// transfer from received msg to buffer
 	queue->data[queue->rear] = r_msg[0];
-	
+
 	// increment rear index
 	queue->rear += 1;
 	// check for wraparound
 	if (queue->rear >= RXQSIZE) queue->rear -= RXQSIZE;
 	// keep track of increased buffer content size
 	queue->count += 1;
-	
-	
+
+
 }
 
 /* q_get returns a pointer to the buffer where data is read or NULL if
@@ -149,7 +159,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 		sent_xonxoff = XON;
 		send_xon = true;
 		send_xon = false;
-		
+
 		x_msg[0] = sent_xonxoff;
 
 		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
@@ -157,17 +167,17 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 		else
 			puts("XON gagal dikirim");
 	}
-	
+
 	//select current data from buffer
 	current = &queue->data[queue->front];
-	
+
 	//increment front index
 	queue->front += 1;
 	//check for wraparound
 	if (queue->front >= RXQSIZE) queue->front -= RXQSIZE;
-	
+
 	//keep track of reduced buffer content size
 	queue->count -= 1;
-	
+
 	return current;
 }
