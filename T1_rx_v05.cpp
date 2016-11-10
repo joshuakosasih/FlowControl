@@ -39,7 +39,7 @@ socklen_t cli_len = sizeof(sclient);
 int sockfd; // listen on sock_fd
 
 /* Functions declaration */
-static Byte *rcvchar(int sockfd, QTYPE *queue,int *j);
+static Byte *rcvchar(int sockfd, QTYPE *queue);
 static Byte *q_get(QTYPE *, Byte *);
 
 int main(int argc, char *argv[])
@@ -73,16 +73,20 @@ int main(int argc, char *argv[])
 	send_xon = true, send_xoff = false;
 
 	/* Create child process */
-	int j=1;
+	int j=0;
 	/*** IF PARENT PROCESS ***/
 	while (true) {
-		printf("waiting for char\n");
-		c = *(rcvchar(sockfd, rxq,&j));
-
+		c = *(rcvchar(sockfd, rxq));
+		if (!c) {
+			j = 1;
+		} else {
+			j++;
+		}
 		/* Quit on end of file */
 		if (c == Endfile) {
 			exit(0);
 		}
+		printf("Menerima byte ke-%d.\n", j);
 	}
 
 	/*** ELSE IF CHILD PROCESS ***/
@@ -92,56 +96,46 @@ int main(int argc, char *argv[])
 	}
 }
 
-static Byte *rcvchar(int sockfd, QTYPE *queue, int *j)
+static Byte *rcvchar(int sockfd, QTYPE *queue)
 {
 	/*
 	Insert code here. Read a character from socket and put it to the receive buffer. If the number of characters in the
 	* receive buffer is above certain level, then send XOFF and set a flag (why?). Return a pointer to the buffer where data is put.
 	*/
-
 	if ((queue->count >= UPPERLIMIT)&&(!send_xoff)) { //buffer full
-
 		sent_xonxoff = XOFF;
 		send_xon = false;
 		send_xoff = true;
 
 		x_msg[0] = sent_xonxoff;
-		//TODO: send 'sent_xonxoff' via socket
-
+		
+		// send 'sent_xonxoff' via socket
 		if (sendto(sockfd, x_msg, strlen(x_msg), 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
 			puts("Buffer > minimum upperlimit. Mengirim XOFF.");
 		else
 			puts("XOFF gagal dikirim");
-
 	}
 
-	//TODO: read char from socket (receive)
-
+	// read char from socket (receive)
 	if (recvfrom(sockfd, r_msg, RXQSIZE, 0, (struct sockaddr *)&sclient, &cli_len) < 0)
 		puts("Receive byte failed");
-	else
-	{
-		printf("-->%c\n", r_msg[0]);
+	else {
 		// check end of file
-	if(int(r_msg[0]) != Endfile){
-		printf("%zu\n",strlen(r_msg));
-		printf("Menerima byte : %c ke- %d.\n",r_msg[0],*j);
-		*j++;
-	}
-	else
-		*j=0; //reset j
+		if(int(r_msg[0]) != Endfile){
+			printf("Menerima byte: %c\n",r_msg[0]);
+		}
+		else
+			return NULL;
 	}
 	// transfer from received msg to buffer
 	queue->data[queue->rear] = r_msg[0];
 
-	// increment rear index
+	// increment rear index, check for wraparound, increased buffer content size
 	queue->rear += 1;
-	// check for wraparound
 	if (queue->rear >= RXQSIZE) queue->rear -= RXQSIZE;
-	// keep track of increased buffer content size
 	queue->count += 1;
 
-
+	return queue->data;
 }
 
 /* q_get returns a pointer to the buffer where data is read or NULL if
@@ -169,16 +163,12 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 		else
 			puts("XON gagal dikirim");
 	}
-
 	//select current data from buffer
 	current = &queue->data[queue->front];
 
-	//increment front index
+	//increment front index, check for wraparound, reduced buffer content size
 	queue->front += 1;
-	//check for wraparound
 	if (queue->front >= RXQSIZE) queue->front -= RXQSIZE;
-
-	//keep track of reduced buffer content size
 	queue->count -= 1;
 
 	return current;
