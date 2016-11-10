@@ -14,7 +14,7 @@
 #include "dcomm.h"
 
 /* Delay to adjust speed of consuming buffer, in milliseconds */
-#define DELAY 30000
+#define DELAY 600000
 
 /* Define receive buffer size */
 #define RXQSIZE 8
@@ -30,7 +30,9 @@ Byte rxbuf[RXQSIZE];
 QTYPE rcvq = {0, 0, 0, RXQSIZE, rxbuf };
 QTYPE *rxq = &rcvq;
 Byte sent_xonxoff = XON;
-bool send_xon = false, send_xoff = false;
+bool send_xon = false, send_xoff = false, end = false, childead = false;
+FILE* pipein_fp;
+char readbuf[80];
 
 /* Server-Client socket address */
 struct sockaddr_in sserver, sclient;
@@ -55,7 +57,7 @@ int main(int argc, char *argv[])
         puts("Could not create socket");
         return 1;
     }
-	
+
 	sserver.sin_family = AF_INET;
 	sserver.sin_addr.s_addr = INADDR_ANY;
 	sserver.sin_port = htons(atoi(argv[1]));
@@ -66,10 +68,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 	// Get ip address
-	char *ip = inet_ntoa(sserver.sin_addr);
+	pipein_fp = popen("hostname -I","r");
+	char* ip;
+	fgets(ip, 13, pipein_fp);
+	pclose(pipein_fp);
+	printf("Binding pada %s %d...\n", ip, atoi(argv[1]));
 
-	printf("Binding pada %d...\n", atoi(argv[1]));
-	
 	/* Initialize XON/XOFF flags */
 	sent_xonxoff = XON;
 	send_xon = true, send_xoff = false;
@@ -86,17 +90,19 @@ int main(int argc, char *argv[])
 	/*** IF PARENT PROCESS ***/
 	while (true) {
 		c = *(rcvchar(sockfd, rxq));
-
 		/* Quit on end of file */
-		if (c == Endfile) {
-			puts("Received end of file");
-			puts("Exiting");
-			puts("Bye");				
-			exit(0);
-		} else {
-			if (!c) {
+		if (end) {
+			while (true) {
+				if(childead)
+				{
+					exit(0);
+				}
+			}
+			}
+		else {
+				if (!c) {
 				j = 1;
-			} else {
+				} else {
 				j++;
 			}
 			printf("Menerima byte ke-%d.\n", j);
@@ -134,17 +140,16 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	// read char from socket (receive)
 	if (recvfrom(sockfd, r_msg, RXQSIZE, 0, (struct sockaddr *)&sclient, &cli_len) < 0)
 		puts("Receive byte failed");
-	
+
 	// check end of file
 	if(r_msg[0] == Endfile) {
 		puts("Received end of file");
-		puts("Exiting");
-		puts("Bye");
-		exit(0);
-		return (Byte*)Endfile;
+		end = true;
+		return queue->data;
 	}
-	
+	else {
 	// transfer from received msg to buffer
+
 	queue->data[queue->rear] = r_msg[0];
 
 	// increment rear index, check for wraparound, increased buffer content size
@@ -153,6 +158,7 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	queue->count += 1;
 
 	return queue->data;
+	}
 }
 
 static Byte *q_get(QTYPE *queue, Byte *data)
@@ -160,7 +166,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	Byte *current;
 	/* Nothing in the queue */
 	if (!queue->count) return (NULL);
-	
+
 	/** send XON **/
 	if ((queue->count <= LOWERLIMIT) && (!send_xon)){
 		sent_xonxoff = XON;
@@ -195,6 +201,11 @@ static void* consume(void *queue){
 		if(res){
 			printf("Mengkonsumsi byte ke-%d : '%c'\n",i,*res);
 			i++;
+		}
+		if(rcvq_ptr->count == 0 && end)
+		{
+			childead = true;
+			pthread_exit(0);
 		}
 		usleep(DELAY); //delay
 	}
