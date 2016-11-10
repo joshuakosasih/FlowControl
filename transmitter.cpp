@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 			// waiting for XON
 			while (lastByteReceived == XOFF) {
 
-				
+					printf("Menunggu XON.\n");
 			}
 
 			printf("XON diterima.\n");
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 
 		else {
 
-			usleep(1000);
+			usleep(10000);
 			// sending bytes (one character)
 			counter++;
 			printf("Mengirim byte ke-%d: '%s'\n", counter, str_to_send);
@@ -164,14 +164,8 @@ void *XON_XOFF_HANDLER(void *args) {
 
 		else {
 			puts("Received XON/XOFF");
-
-			if ((Byte)recv_str[0] == XON || (Byte)recv_str[0] == XOFF) {
-				puts("XON/XOFF");
-			}
-			else {
 				printf("? %d\n", recv_str[0]);
 			}
-		}
 
 		// XON or XOFF
 		lastByteReceived = recv_str[0];

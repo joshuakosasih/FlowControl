@@ -18,8 +18,8 @@
 
 /* Define receive buffer size */
 #define RXQSIZE 8
-#define UPPERLIMIT 7
-#define LOWERLIMIT 5
+#define UPPERLIMIT 6
+#define LOWERLIMIT 2
 
 /* Message */
 Byte x_msg[1];
@@ -91,7 +91,6 @@ int main(int argc, char *argv[])
 		} else {
 			j++;
 		}
-		usleep(50000);
 		/* Quit on end of file */
 		if (c == Endfile) {
 			exit(0);
@@ -137,7 +136,7 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
 	else {
 		// check end of file
 		if(int(r_msg[0]) != Endfile){
-			printf("Menerima byte: %c\n",r_msg[0]);
+
 		}
 		else
 			return NULL;
@@ -169,8 +168,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 	if ((queue->count <= LOWERLIMIT) && (!send_xon)){
 		sent_xonxoff = XON;
 		send_xon = true;
-		send_xon = false;
-
+		send_xoff = false;
 		x_msg[0] = sent_xonxoff;
 
 		if (sendto(sockfd, x_msg, 1, 0, (struct sockaddr *)&sclient,sizeof(sclient)) > 0)
